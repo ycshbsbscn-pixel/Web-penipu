@@ -5,7 +5,7 @@
    ============================================================ */
 
 /* ============================================================
-   1. CONFIG
+   1. FIREBASE CONFIG
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyAMJU2BpafyMqH7_MQ7KdlS4PEyEoKbSNA",
@@ -18,14 +18,19 @@ const firebaseConfig = {
   measurementId: "G-950QYSG9FN"
 };
 
-/* Deteksi base URL backend */
+/* ============================================================
+   2. API BASE URL
+   Deteksi otomatis: localhost vs production
+   ============================================================ */
 const API_BASE = (window.location.hostname === 'localhost'
               || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:3000/api'
   : '/api';
 
+console.log('[app] API_BASE:', API_BASE);
+
 /* ============================================================
-   2. FIREBASE INIT
+   3. FIREBASE INIT
    ============================================================ */
 let db = null;
 let auth = null;
@@ -33,6 +38,12 @@ let fbReady = false;
 
 function initFirebase() {
   try {
+    if (typeof firebase === 'undefined') {
+      console.error('[fb] ✗ Firebase SDK tidak ter-load');
+      updateConnStatus('error', 'SDK Missing');
+      return;
+    }
+
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     auth = firebase.auth();
@@ -68,7 +79,7 @@ function updateConnStatus(state, text) {
 }
 
 /* ============================================================
-   3. TOOL DEFINITIONS
+   4. TOOL DEFINITIONS
    ============================================================ */
 const TOOLS = {
   rekening: {
@@ -136,14 +147,14 @@ const TOOLS = {
       { name: 'reporterName', label: 'Nama Pelapor', type: 'text', placeholder: 'Nama lengkap Anda' },
       { name: 'reporterContact', label: 'Kontak Pelapor', type: 'text', placeholder: 'HP / email' },
       { name: 'lossAmount', label: 'Kerugian (Rp)', type: 'text', placeholder: '1000000' },
-      { name: 'modus', label: 'Modus', type: 'text', placeholder: 'Investasi palsu, jual-beli online, dll' },
+      { name: 'modus', label: 'Modus', type: 'text', placeholder: 'Investasi palsu, jual-beli online' },
       { name: 'chronology', label: 'Kronologi', type: 'textarea', placeholder: 'Jelaskan kronologi lengkap...' }
     ]
   }
 };
 
 /* ============================================================
-   4. HELPERS
+   5. HELPERS
    ============================================================ */
 function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -164,34 +175,70 @@ function num(n) {
 }
 
 /* ============================================================
-   5. BACKEND API — panggilan ke /api
+   6. BACKEND API CALL
    ============================================================ */
 async function callAPI(tool, data) {
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tool, data })
-  });
-  const result = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
-  return result;
-}
+  console.log('[api] POST', API_BASE, { tool, data });
 
-/* ---------- Tool Handlers ---------- */
-async function scanRekening(formData)  { return await callAPI('rekening', formData); }
-async function scanPhone(formData)     { return await callAPI('phone', formData); }
-async function scanSitus(formData)     { return await callAPI('situs', formData); }
-async function scanEmail(formData)     { return await callAPI('email', formData); }
-async function scanLink(formData)      { return await callAPI('link', formData); }
-async function generateLaporan(formData) {
-  const result = await callAPI('laporan', formData);
-  // Generate PDF di client setelah dapat konfirmasi dari backend
-  try { generateLaporanPDF(result); } catch (e) { console.warn('[pdf] error:', e); }
+  let res;
+  try {
+    res = await fetch(API_BASE, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tool, data })
+    });
+  } catch (e) {
+    throw new Error('Koneksi ke server gagal: ' + e.message);
+  }
+
+  const result = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const errMsg = result.error || `HTTP ${res.status}`;
+    throw new Error(errMsg);
+  }
+
   return result;
 }
 
 /* ============================================================
-   6. PDF GENERATION — jsPDF
+   7. TOOL HANDLERS
+   ============================================================ */
+async function scanRekening(formData) {
+  return await callAPI('rekening', formData);
+}
+
+async function scanPhone(formData) {
+  return await callAPI('phone', formData);
+}
+
+async function scanSitus(formData) {
+  return await callAPI('situs', formData);
+}
+
+async function scanEmail(formData) {
+  return await callAPI('email', formData);
+}
+
+async function scanLink(formData) {
+  return await callAPI('link', formData);
+}
+
+async function generateLaporan(formData) {
+  const result = await callAPI('laporan', formData);
+  // Auto-download PDF
+  try {
+    generateLaporanPDF(result);
+  } catch (e) {
+    console.warn('[pdf] error:', e);
+  }
+  return result;
+}
+
+/* ============================================================
+   8. PDF GENERATION (jsPDF)
    ============================================================ */
 function generateLaporanPDF(data) {
   if (!window.jspdf) {
@@ -234,7 +281,8 @@ function generateLaporanPDF(data) {
 
   const line = (label, value) => {
     if (!value) value = '—';
-    doc.text(`${label.padEnd(18)}: ${value}`, margin, y);
+    const text = `${label}: ${value}`;
+    doc.text(text, margin, y);
     y += 6;
   };
 
@@ -261,7 +309,7 @@ function generateLaporanPDF(data) {
 
   // D. Kerugian
   sectionTitle('D. KERUGIAN');
-  line('Total Kerugian', `Rp ${num(data.lossAmount)}`);
+  line('Total Kerugian', 'Rp ' + num(data.lossAmount));
   line('Modus', data.modus);
   y += 3;
 
@@ -285,7 +333,7 @@ function generateLaporanPDF(data) {
 }
 
 /* ============================================================
-   7. FIREBASE — Save & Load
+   9. FIREBASE — Save & Load
    ============================================================ */
 async function saveScan(scanData) {
   if (!fbReady || !db) return;
@@ -350,7 +398,7 @@ function renderRecent(items) {
 }
 
 /* ============================================================
-   8. UI ROUTER
+   10. UI ROUTER
    ============================================================ */
 function showHome() {
   document.getElementById('view-home').classList.add('active');
@@ -408,7 +456,7 @@ function showTool(toolId) {
 }
 
 /* ============================================================
-   9. RUN SCAN
+   11. RUN SCAN
    ============================================================ */
 async function runScan(toolId) {
   const tool = TOOLS[toolId];
@@ -422,14 +470,14 @@ async function runScan(toolId) {
     if (input) formData[f.name] = input.value.trim();
   }
 
-  // Validate — required fields per tool
+  // Validate
   const requiredMap = {
     rekening: ['bank', 'nomor'],
     phone: ['nomor'],
     situs: ['url'],
     email: ['email'],
     link: ['url'],
-    laporan: ['suspectName'] // minimal 1
+    laporan: ['suspectName']
   };
   const required = requiredMap[toolId] || [];
 
@@ -449,8 +497,9 @@ async function runScan(toolId) {
     }
   }
 
-  // Loading
+  // Loading state
   btn.disabled = true;
+  btn.innerHTML = 'Memindai...';
   resultEl.innerHTML = `
     <div class="loading-state">
       <div class="spinner"></div>
@@ -483,11 +532,12 @@ async function runScan(toolId) {
     </div>`;
   } finally {
     btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" aria-hidden="true"><use href="#i-search"/></svg> ${toolId === 'laporan' ? 'Generate Laporan' : 'Scan Sekarang'}`;
   }
 }
 
 /* ============================================================
-   10. RENDER RESULT
+   12. RENDER RESULT
    ============================================================ */
 function renderResult(result) {
   const el = document.getElementById('toolResult');
@@ -502,9 +552,11 @@ function renderResult(result) {
     unknown: 'Unknown'
   }[result.riskLevel] || 'Unknown';
 
-  // Grid info — filter fields yang mau ditampilkan
+  // Skip keys yang tidak mau ditampilkan di grid
   const SKIP_KEYS = ['type', 'target', 'riskScore', 'riskLevel', 'flags', 'sources',
-                     'data', 'createdAt', 'cached'];
+                     'data', 'createdAt', 'cached', 'suspectName', 'reporterName',
+                     'suspectPhone', 'suspectAccount', 'suspectBank', 'reporterContact',
+                     'lossAmount', 'modus', 'chronology'];
 
   const entries = [];
   for (const [k, v] of Object.entries(result)) {
@@ -513,25 +565,20 @@ function renderResult(result) {
     if (typeof v === 'object') continue;
 
     const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-    let value = String(v);
-    if (k === 'lossAmount' && !isNaN(v)) {
-      value = 'Rp ' + new Intl.NumberFormat('id-ID').format(Number(v));
-    }
-    entries.push([label, value]);
+    entries.push([label, String(v)]);
   }
 
   // Sources
-  const sourcesHtml = (result.sources && result.sources.length > 0)
+  const sourcesHtml = (result.sources && Array.isArray(result.sources) && result.sources.length > 0)
     ? `<div class="result-flags">
         ${result.sources.map(s => {
           const ok = s.found || s.reported || s.hits > 0;
           const icon = ok ? 'i-warning' : 'i-check';
           const color = ok ? 'var(--red)' : 'var(--green)';
-          const text = s.error
-            ? `${s.source}: ${s.error}`
-            : ok
-              ? `${s.source}: ✓ Ditemukan`
-              : `${s.source}: ✓ Bersih`;
+          let text = s.source || 'unknown';
+          if (s.error) text += `: ${s.error}`;
+          else if (ok) text += `: ✓ Ditemukan (${s.hits || s.reportCount || s.count || 1})`;
+          else text += ': ✓ Bersih';
           return `<div class="flag-item" style="color:${color}">
             <svg width="14" height="14" aria-hidden="true"><use href="#${icon}"/></svg>
             ${esc(text)}
@@ -541,7 +588,7 @@ function renderResult(result) {
     : '';
 
   // Flags
-  const flagsHtml = (result.flags && result.flags.length > 0)
+  const flagsHtml = (result.flags && Array.isArray(result.flags) && result.flags.length > 0)
     ? `<div class="result-flags">
         ${result.flags.map(f => `
           <div class="flag-item">
@@ -572,10 +619,12 @@ function renderResult(result) {
 }
 
 /* ============================================================
-   11. RENDER TOOLS GRID
+   13. RENDER TOOLS GRID
    ============================================================ */
 function renderToolsGrid() {
   const el = document.getElementById('toolsGrid');
+  if (!el) return;
+
   el.innerHTML = Object.values(TOOLS).map(tool => `
     <div class="tool-card" data-tool="${tool.id}">
       <div class="tool-card-icon">
@@ -593,14 +642,14 @@ function renderToolsGrid() {
 }
 
 /* ============================================================
-   12. INIT
+   14. INIT
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[app] AntiScam Tools starting...');
-  console.log('[app] API_BASE:', API_BASE);
-
   renderToolsGrid();
-  document.getElementById('btnBack').addEventListener('click', showHome);
+
+  const btnBack = document.getElementById('btnBack');
+  if (btnBack) btnBack.addEventListener('click', showHome);
 
   initFirebase();
 });
