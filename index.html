@@ -14,14 +14,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
-<!-- jsPDF untuk generate laporan PDF -->
+<!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
-<!-- ============================================================
-     SVG SPRITE — semua icon (no emoji)
-     ============================================================ -->
+<!-- SVG SPRITE -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="i-shield" viewBox="0 0 24 24">
@@ -76,21 +74,10 @@
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
       <polyline points="12 7 12 12 15 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
-    <symbol id="i-database" viewBox="0 0 24 24">
-      <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="currentColor" stroke-width="2"/>
-      <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5" fill="none" stroke="currentColor" stroke-width="2"/>
-      <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6" fill="none" stroke="currentColor" stroke-width="2"/>
-    </symbol>
-    <symbol id="i-download" viewBox="0 0 24 24">
-      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </symbol>
   </defs>
 </svg>
 
 <div class="app">
-  <!-- Header -->
   <header class="header">
     <div class="brand">
       <svg width="28" height="28" aria-hidden="true"><use href="#i-shield"/></svg>
@@ -102,7 +89,6 @@
     </div>
   </header>
 
-  <!-- HOME VIEW -->
   <main id="view-home" class="view active">
     <section class="hero">
       <div class="hero-prompt">
@@ -144,7 +130,6 @@
     </section>
   </main>
 
-  <!-- TOOL VIEW -->
   <main id="view-tool" class="view">
     <div class="tool-header">
       <button class="btn-back" id="btnBack">

@@ -1,11 +1,12 @@
 /* ============================================================
-   ANTISCAM TOOLS — Frontend (Backend-Integrated)
-   Semua request ke /api (Vercel Serverless)
+   ANTISCAM TOOLS — All-in-One Script (No Backend)
+   Firebase + Tavily + 6 Tools + UI Router
+   Cara pakai: buka index.html dari web server (bukan file://)
    Project: tracker-penipu
    ============================================================ */
 
 /* ============================================================
-   1. FIREBASE CONFIG
+   1. CONFIG
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyAMJU2BpafyMqH7_MQ7KdlS4PEyEoKbSNA",
@@ -18,19 +19,11 @@ const firebaseConfig = {
   measurementId: "G-950QYSG9FN"
 };
 
-/* ============================================================
-   2. API BASE URL
-   Deteksi otomatis: localhost vs production
-   ============================================================ */
-const API_BASE = (window.location.hostname === 'localhost'
-              || window.location.hostname === '127.0.0.1')
-  ? 'http://localhost:3000/api'
-  : '/api';
-
-console.log('[app] API_BASE:', API_BASE);
+const TAVILY_API_KEY = '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';
+const TAVILY_ENDPOINT = 'https://api.tavily.com/search';
 
 /* ============================================================
-   3. FIREBASE INIT
+   2. FIREBASE INIT
    ============================================================ */
 let db = null;
 let auth = null;
@@ -39,7 +32,7 @@ let fbReady = false;
 function initFirebase() {
   try {
     if (typeof firebase === 'undefined') {
-      console.error('[fb] ✗ Firebase SDK tidak ter-load');
+      console.error('[fb] Firebase SDK tidak ter-load');
       updateConnStatus('error', 'SDK Missing');
       return;
     }
@@ -60,9 +53,6 @@ function initFirebase() {
       .catch(err => {
         updateConnStatus('error', 'Auth Error');
         console.error('[fb] ✗ auth gagal:', err.code, err.message);
-        if (err.code === 'auth/admin-restricted-operation') {
-          console.warn('[fb] → Aktifkan Anonymous Auth di Firebase Console');
-        }
       });
   } catch (e) {
     updateConnStatus('error', 'Init Error');
@@ -79,7 +69,7 @@ function updateConnStatus(state, text) {
 }
 
 /* ============================================================
-   4. TOOL DEFINITIONS
+   3. TOOL DEFINITIONS
    ============================================================ */
 const TOOLS = {
   rekening: {
@@ -154,7 +144,7 @@ const TOOLS = {
 };
 
 /* ============================================================
-   5. HELPERS
+   4. HELPERS
    ============================================================ */
 function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -175,70 +165,341 @@ function num(n) {
 }
 
 /* ============================================================
-   6. BACKEND API CALL
+   5. TAVILY SEARCH — helper
    ============================================================ */
-async function callAPI(tool, data) {
-  console.log('[api] POST', API_BASE, { tool, data });
-
-  let res;
+async function tavilySearch(query, maxResults = 5) {
   try {
-    res = await fetch(API_BASE, {
+    const res = await fetch(TAVILY_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ tool, data })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: TAVILY_API_KEY,
+        query,
+        search_depth: 'basic',
+        max_results: maxResults,
+        include_answer: false
+      })
     });
+    if (!res.ok) {
+      console.warn('[tavily] HTTP', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return data.results || [];
   } catch (e) {
-    throw new Error('Koneksi ke server gagal: ' + e.message);
+    console.warn('[tavily] error:', e.message);
+    return [];
+  }
+}
+
+/* ============================================================
+   6. TOOL LOGIC
+   ============================================================ */
+
+/* ---------- 6.1 REKENING ---------- */
+async function scanRekening({ bank, nomor }) {
+  if (!bank || !nomor) throw new Error('Bank dan nomor rekening wajib diisi.');
+  if (!/^\d{8,20}$/.test(nomor)) throw new Error('Nomor rekening harus 8-20 digit.');
+
+  const result = {
+    type: 'rekening',
+    target: `${bank.toUpperCase()}:${nomor}`,
+    bank: bank.toUpperCase(),
+    nomor,
+    reported: false,
+    riskScore: 0,
+    riskLevel: 'safe',
+    sources: [],
+    flags: []
+  };
+
+  // Tavily search untuk laporan web
+  const tavily = await tavilySearch(`"${nomor}" penipuan OR scam OR laporan ${bank}`, 5);
+  const suspicious = tavily.filter(r =>
+    /penipu|scam|lapor|tipu|curang|penipuan/i.test((r.title || '') + ' ' + (r.content || ''))
+  );
+
+  if (suspicious.length > 0) {
+    result.reported = true;
+    result.riskScore += Math.min(suspicious.length * 15, 60);
+    result.flags.push(`Ditemukan ${suspicious.length} laporan di web`);
+    result.sources.push({
+      source: 'tavily-web',
+      found: true,
+      hits: suspicious.length,
+      results: suspicious.slice(0, 3).map(r => ({ title: r.title, url: r.url }))
+    });
+  } else {
+    result.sources.push({ source: 'tavily-web', found: false, hits: 0 });
   }
 
-  const result = await res.json().catch(() => ({}));
+  // Catatan: CekRekening.id dan Kredibel tidak bisa diakses dari browser (CORS)
+  result.sources.push({
+    source: 'cekrekening.id',
+    found: false,
+    note: 'Perlu backend untuk akses — buka manual di cekrekening.id'
+  });
 
-  if (!res.ok) {
-    const errMsg = result.error || `HTTP ${res.status}`;
-    throw new Error(errMsg);
-  }
+  if (result.riskScore >= 45) result.riskLevel = 'high';
+  else if (result.riskScore >= 20) result.riskLevel = 'medium';
+  else if (result.riskScore > 0) result.riskLevel = 'low';
 
   return result;
 }
 
-/* ============================================================
-   7. TOOL HANDLERS
-   ============================================================ */
-async function scanRekening(formData) {
-  return await callAPI('rekening', formData);
+/* ---------- 6.2 PHONE ---------- */
+const PROVIDERS = {
+  '811': 'Telkomsel', '812': 'Telkomsel', '813': 'Telkomsel', '821': 'Telkomsel',
+  '822': 'Telkomsel', '823': 'Telkomsel', '851': 'Telkomsel', '852': 'Telkomsel', '853': 'Telkomsel',
+  '814': 'Indosat', '815': 'Indosat', '816': 'Indosat',
+  '855': 'Indosat', '856': 'Indosat', '857': 'Indosat', '858': 'Indosat',
+  '817': 'XL', '818': 'XL', '819': 'XL', '859': 'XL', '877': 'XL', '878': 'XL',
+  '831': 'Axis', '832': 'Axis', '833': 'Axis', '838': 'Axis',
+  '895': 'Tri', '896': 'Tri', '897': 'Tri', '898': 'Tri', '899': 'Tri',
+  '881': 'Smartfren', '882': 'Smartfren', '883': 'Smartfren', '884': 'Smartfren',
+  '885': 'Smartfren', '886': 'Smartfren', '887': 'Smartfren', '888': 'Smartfren', '889': 'Smartfren'
+};
+
+async function scanPhone({ nomor }) {
+  if (!nomor) throw new Error('Nomor HP wajib diisi.');
+
+  const cleaned = String(nomor).replace(/[^\d+]/g, '').replace(/^\+62/, '0').replace(/^62/, '0');
+
+  const result = {
+    type: 'phone',
+    target: cleaned,
+    nomor: cleaned,
+    provider: null,
+    reported: false,
+    riskScore: 0,
+    riskLevel: 'safe',
+    sources: [],
+    flags: []
+  };
+
+  const prefix = cleaned.replace(/^0/, '').slice(0, 3);
+  result.provider = PROVIDERS[prefix] || 'Unknown';
+
+  const tavily = await tavilySearch(`"${cleaned}" penipuan OR scam OR laporan OR was-was`, 5);
+  const suspicious = tavily.filter(r =>
+    /penipu|scam|lapor|tipu|curang|penipuan|was-was|modus|hati-hati/i.test((r.title || '') + ' ' + (r.content || ''))
+  );
+
+  if (suspicious.length > 0) {
+    result.reported = true;
+    result.riskScore += Math.min(suspicious.length * 15, 70);
+    result.flags.push(`Ditemukan ${suspicious.length} laporan di web`);
+    result.sources.push({
+      source: 'tavily-web',
+      found: true,
+      hits: suspicious.length,
+      results: suspicious.slice(0, 3).map(r => ({ title: r.title, url: r.url }))
+    });
+  } else {
+    result.sources.push({ source: 'tavily-web', found: false, hits: 0 });
+  }
+
+  result.sources.push({
+    source: 'kredibel.com',
+    found: false,
+    note: 'Buka manual di kredibel.com untuk cek lebih lanjut'
+  });
+
+  if (result.riskScore >= 50) result.riskLevel = 'high';
+  else if (result.riskScore >= 25) result.riskLevel = 'medium';
+  else if (result.riskScore > 0) result.riskLevel = 'low';
+
+  return result;
 }
 
-async function scanPhone(formData) {
-  return await callAPI('phone', formData);
+/* ---------- 6.3 SITUS ---------- */
+async function scanSitus({ url }) {
+  if (!url) throw new Error('URL wajib diisi.');
+
+  let target = url.trim();
+  if (!/^https?:\/\//i.test(target)) target = 'http://' + target;
+
+  let domain;
+  try { domain = new URL(target).hostname; }
+  catch { throw new Error('URL tidak valid.'); }
+
+  const result = {
+    type: 'situs',
+    target,
+    domain,
+    riskScore: 0,
+    riskLevel: 'safe',
+    flags: [],
+    keywords: {}
+  };
+
+  // Deteksi keyword di URL
+  const urlKeywords = ['judi', 'slot', 'togel', 'casino', 'poker', 'bet', 'maxwin', 'jackpot', 'rtp'];
+  const urlLower = target.toLowerCase();
+  const foundUrl = urlKeywords.filter(k => urlLower.includes(k));
+  if (foundUrl.length > 0) {
+    result.keywords.urlKeywords = foundUrl;
+    result.riskScore += 40;
+    result.flags.push(`URL mengandung kata kunci: ${foundUrl.join(', ')}`);
+  }
+
+  // Tavily search
+  const tavily = await tavilySearch(`"${domain}" penipuan OR scam OR judi OR phishing OR laporan`, 5);
+  const suspicious = tavily.filter(r =>
+    /penipu|scam|judi|phishing|lapor|tipu|illegal/i.test((r.title || '') + ' ' + (r.content || ''))
+  );
+
+  if (suspicious.length > 0) {
+    result.riskScore += Math.min(suspicious.length * 10, 40);
+    result.flags.push(`Ditemukan ${suspicious.length} laporan terkait domain`);
+    result.keywords.reports = suspicious.slice(0, 3).map(r => ({ title: r.title, url: r.url }));
+    result.sources = [{
+      source: 'tavily-web',
+      found: true,
+      hits: suspicious.length
+    }];
+  } else {
+    result.sources = [{ source: 'tavily-web', found: false, hits: 0 }];
+  }
+
+  if (result.riskScore >= 50) result.riskLevel = 'high';
+  else if (result.riskScore >= 25) result.riskLevel = 'medium';
+  else if (result.riskScore > 0) result.riskLevel = 'low';
+
+  return result;
 }
 
-async function scanSitus(formData) {
-  return await callAPI('situs', formData);
+/* ---------- 6.4 EMAIL ---------- */
+const DISPOSABLE_DOMAINS = [
+  'tempmail.com', 'guerrillamail.com', '10minutemail.com', 'mailinator.com',
+  'throwawaymail.com', 'yopmail.com', 'sharklasers.com', 'maildrop.cc',
+  'getnada.com', 'temp-mail.org', 'trashmail.com', 'fakeinbox.com',
+  'mailnesia.com', 'mohmal.com', 'dispostable.com', 'mintemail.com',
+  'spamgourmet.com', 'mytrashmail.com', 'mailexpire.com', 'throwaway.email'
+];
+
+async function scanEmail({ email }) {
+  if (!email || !/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(email)) {
+    throw new Error('Email tidak valid.');
+  }
+
+  const domain = email.split('@')[1].toLowerCase();
+
+  const result = {
+    type: 'email',
+    target: email,
+    email,
+    domain,
+    disposable: false,
+    riskScore: 0,
+    riskLevel: 'safe',
+    sources: [],
+    flags: []
+  };
+
+  if (DISPOSABLE_DOMAINS.includes(domain)) {
+    result.disposable = true;
+    result.riskScore += 40;
+    result.flags.push('Email dari layanan disposable/temporary');
+  }
+
+  // HIBP via public proxy (haveibeenpwned butuh key, skip)
+  result.sources.push({
+    source: 'haveibeenpwned.com',
+    found: false,
+    note: 'Buka manual di haveibeenpwned.com untuk cek kebocoran'
+  });
+
+  if (result.riskScore >= 40) result.riskLevel = 'high';
+  else if (result.riskScore >= 15) result.riskLevel = 'medium';
+  else if (result.riskScore > 0) result.riskLevel = 'low';
+
+  return result;
 }
 
-async function scanEmail(formData) {
-  return await callAPI('email', formData);
+/* ---------- 6.5 LINK ---------- */
+async function scanLink({ url }) {
+  if (!url) throw new Error('URL wajib diisi.');
+
+  let target = url.trim();
+  if (!/^https?:\/\//i.test(target)) target = 'http://' + target;
+
+  const result = {
+    type: 'link',
+    target,
+    input: target,
+    final: target,
+    domain: null,
+    suspicious: false,
+    riskScore: 0,
+    riskLevel: 'safe',
+    flags: []
+  };
+
+  try { result.domain = new URL(target).hostname; } catch {}
+
+  // Deteksi keyword mencurigakan di URL
+  const suspiciousWords = ['judi', 'slot', 'togel', 'casino', 'poker', 'bet', 'maxwin',
+                            'login', 'verify', 'bonus', 'hadiah', 'claim', 'wallet',
+                            'investment', 'profit', 'crypto'];
+  const lower = target.toLowerCase();
+  const found = suspiciousWords.filter(w => lower.includes(w));
+
+  if (found.length > 0) {
+    result.suspicious = true;
+    result.riskScore += 50;
+    result.flags.push(`URL mengandung kata: ${found.join(', ')}`);
+  }
+
+  const shortDomains = ['bit.ly', 'tinyurl.com', 's.id', 't.co', 'goo.gl', 'ow.ly', 'is.gd', 'rebrand.ly'];
+  if (shortDomains.some(d => result.domain.includes(d))) {
+    result.flags.push('Short URL — cek redirect manual di browser');
+    result.riskScore += 10;
+  }
+
+  // Tavily search
+  const tavily = await tavilySearch(`${target} penipuan OR scam OR judi OR phishing`, 3);
+  const suspicious2 = tavily.filter(r =>
+    /penipu|scam|judi|phishing|lapor|tipu|illegal/i.test((r.title || '') + ' ' + (r.content || ''))
+  );
+  if (suspicious2.length > 0) {
+    result.riskScore += Math.min(suspicious2.length * 10, 30);
+    result.flags.push(`Ditemukan ${suspicious2.length} laporan terkait URL`);
+  }
+
+  if (result.riskScore >= 50) result.riskLevel = 'high';
+  else if (result.riskScore >= 25) result.riskLevel = 'medium';
+  else if (result.riskScore > 0) result.riskLevel = 'low';
+
+  return result;
 }
 
-async function scanLink(formData) {
-  return await callAPI('link', formData);
-}
-
+/* ---------- 6.6 LAPORAN ---------- */
 async function generateLaporan(formData) {
-  const result = await callAPI('laporan', formData);
-  // Auto-download PDF
+  if (!formData.suspectName && !formData.suspectAccount && !formData.suspectPhone) {
+    throw new Error('Minimal salah satu data terlapor harus diisi.');
+  }
+
+  const result = {
+    type: 'laporan',
+    target: formData.suspectName || formData.suspectAccount || formData.suspectPhone || 'unknown',
+    ...formData,
+    riskLevel: 'medium',
+    createdAt: Date.now()
+  };
+
+  // Auto-generate PDF
   try {
     generateLaporanPDF(result);
   } catch (e) {
     console.warn('[pdf] error:', e);
   }
+
   return result;
 }
 
 /* ============================================================
-   8. PDF GENERATION (jsPDF)
+   7. PDF GENERATION
    ============================================================ */
 function generateLaporanPDF(data) {
   if (!window.jspdf) {
@@ -253,7 +514,6 @@ function generateLaporanPDF(data) {
   const margin = 20;
   let y = margin;
 
-  // Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.text('LAPORAN DUGAAN PENIPUAN', pageW / 2, y, { align: 'center' });
@@ -270,50 +530,44 @@ function generateLaporanPDF(data) {
   doc.line(margin, y, pageW - margin, y);
   y += 10;
 
-  const sectionTitle = (title) => {
+  const section = (t) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text(title, margin, y);
+    doc.text(t, margin, y);
     y += 7;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
   };
 
-  const line = (label, value) => {
-    if (!value) value = '—';
-    const text = `${label}: ${value}`;
-    doc.text(text, margin, y);
+  const line = (l, v) => {
+    if (!v) v = '—';
+    doc.text(`${l}: ${v}`, margin, y);
     y += 6;
   };
 
-  // A. Data Terlapor
-  sectionTitle('A. DATA TERLAPOR');
+  section('A. DATA TERLAPOR');
   line('Nama', data.suspectName);
   line('Nomor HP', data.suspectPhone);
   line('Nomor Rekening', data.suspectAccount);
   line('Bank', data.suspectBank);
   y += 3;
 
-  // B. Data Pelapor
-  sectionTitle('B. DATA PELAPOR');
+  section('B. DATA PELAPOR');
   line('Nama', data.reporterName);
   line('Kontak', data.reporterContact);
   y += 3;
 
-  // C. Kronologi
-  sectionTitle('C. KRONOLOGI KEJADIAN');
-  const chronology = data.chronology || '—';
-  const chronLines = doc.splitTextToSize(chronology, pageW - margin * 2);
+  section('C. KRONOLOGI KEJADIAN');
+  const chron = data.chronology || '—';
+  const chronLines = doc.splitTextToSize(chron, pageW - margin * 2);
   doc.text(chronLines, margin, y);
   y += chronLines.length * 6 + 5;
 
-  // D. Kerugian
-  sectionTitle('D. KERUGIAN');
+  section('D. KERUGIAN');
   line('Total Kerugian', 'Rp ' + num(data.lossAmount));
   line('Modus', data.modus);
   y += 3;
 
-  // Footer
   doc.setDrawColor(0);
   doc.line(margin, y, pageW - margin, y);
   y += 6;
@@ -321,19 +575,17 @@ function generateLaporanPDF(data) {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(80);
-  const footerText = 'Laporan ini dibuat untuk keperluan pelaporan resmi kepada pihak berwenang. ' +
-    'Dokumen ini dapat diserahkan ke Bareskrim Polri, OJK (157), atau Komdigi untuk ditindaklanjuti.';
-  const footLines = doc.splitTextToSize(footerText, pageW - margin * 2);
+  const footer = 'Laporan ini dibuat untuk keperluan pelaporan resmi. ' +
+    'Dokumen ini dapat diserahkan ke Bareskrim Polri, OJK (157), atau Komdigi.';
+  const footLines = doc.splitTextToSize(footer, pageW - margin * 2);
   doc.text(footLines, margin, y);
 
-  // Save
-  const filename = `laporan-penipuan-${Date.now()}.pdf`;
-  doc.save(filename);
-  console.log('[pdf] ✓ saved:', filename);
+  doc.save(`laporan-penipuan-${Date.now()}.pdf`);
+  console.log('[pdf] ✓ saved');
 }
 
 /* ============================================================
-   9. FIREBASE — Save & Load
+   8. FIREBASE — Save & Load
    ============================================================ */
 async function saveScan(scanData) {
   if (!fbReady || !db) return;
@@ -348,7 +600,7 @@ async function saveScan(scanData) {
     });
     console.log('[fb] ✓ scan saved:', scanData.type);
   } catch (e) {
-    console.warn('[fb] gagal simpan scan:', e.message);
+    console.warn('[fb] gagal simpan:', e.message);
   }
 }
 
@@ -398,7 +650,7 @@ function renderRecent(items) {
 }
 
 /* ============================================================
-   10. UI ROUTER
+   9. UI ROUTER
    ============================================================ */
 function showHome() {
   document.getElementById('view-home').classList.add('active');
@@ -418,7 +670,6 @@ function showTool(toolId) {
   document.getElementById('toolTitle').textContent = tool.name;
   document.getElementById('toolDesc').textContent = tool.desc;
 
-  // Render form
   const form = document.getElementById('toolForm');
   form.innerHTML = tool.fields.map(f => {
     if (f.type === 'select') {
@@ -456,14 +707,13 @@ function showTool(toolId) {
 }
 
 /* ============================================================
-   11. RUN SCAN
+   10. RUN SCAN
    ============================================================ */
 async function runScan(toolId) {
   const tool = TOOLS[toolId];
   const btn = document.getElementById('submitBtn');
   const resultEl = document.getElementById('toolResult');
 
-  // Collect form data
   const formData = {};
   for (const f of tool.fields) {
     const input = document.querySelector(`#toolForm [name="${f.name}"]`);
@@ -483,27 +733,26 @@ async function runScan(toolId) {
 
   for (const field of required) {
     if (!formData[field]) {
-      const fieldDef = tool.fields.find(f => f.name === field);
+      const fd = tool.fields.find(f => f.name === field);
       resultEl.innerHTML = `<div class="result-card risk-high">
         <div class="result-header">
           <span class="result-target">Validasi Gagal</span>
           <span class="risk-badge high">Error</span>
         </div>
         <p style="color:var(--text-dim);font-size:13px">
-          Field "${esc(fieldDef?.label || field)}" wajib diisi.
+          Field "${esc(fd?.label || field)}" wajib diisi.
         </p>
       </div>`;
       return;
     }
   }
 
-  // Loading state
   btn.disabled = true;
-  btn.innerHTML = 'Memindai...';
+  btn.textContent = 'Memindai...';
   resultEl.innerHTML = `
     <div class="loading-state">
       <div class="spinner"></div>
-      <span>Memindai target...</span>
+      <span>Memindai target... (mohon tunggu)</span>
     </div>`;
 
   try {
@@ -537,7 +786,7 @@ async function runScan(toolId) {
 }
 
 /* ============================================================
-   12. RENDER RESULT
+   11. RENDER RESULT
    ============================================================ */
 function renderResult(result) {
   const el = document.getElementById('toolResult');
@@ -552,18 +801,16 @@ function renderResult(result) {
     unknown: 'Unknown'
   }[result.riskLevel] || 'Unknown';
 
-  // Skip keys yang tidak mau ditampilkan di grid
   const SKIP_KEYS = ['type', 'target', 'riskScore', 'riskLevel', 'flags', 'sources',
                      'data', 'createdAt', 'cached', 'suspectName', 'reporterName',
                      'suspectPhone', 'suspectAccount', 'suspectBank', 'reporterContact',
-                     'lossAmount', 'modus', 'chronology'];
+                     'lossAmount', 'modus', 'chronology', 'keywords'];
 
   const entries = [];
   for (const [k, v] of Object.entries(result)) {
     if (SKIP_KEYS.includes(k)) continue;
     if (v === null || v === undefined || v === '') continue;
     if (typeof v === 'object') continue;
-
     const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
     entries.push([label, String(v)]);
   }
@@ -575,9 +822,10 @@ function renderResult(result) {
           const ok = s.found || s.reported || s.hits > 0;
           const icon = ok ? 'i-warning' : 'i-check';
           const color = ok ? 'var(--red)' : 'var(--green)';
-          let text = s.source || 'unknown';
-          if (s.error) text += `: ${s.error}`;
-          else if (ok) text += `: ✓ Ditemukan (${s.hits || s.reportCount || s.count || 1})`;
+          let text = s.source || 'source';
+          if (s.note) text += `: ${s.note}`;
+          else if (s.error) text += `: error`;
+          else if (ok) text += `: ✓ Ditemukan (${s.hits || s.count || 1})`;
           else text += ': ✓ Bersih';
           return `<div class="flag-item" style="color:${color}">
             <svg width="14" height="14" aria-hidden="true"><use href="#${icon}"/></svg>
@@ -619,7 +867,7 @@ function renderResult(result) {
 }
 
 /* ============================================================
-   13. RENDER TOOLS GRID
+   12. RENDER TOOLS GRID
    ============================================================ */
 function renderToolsGrid() {
   const el = document.getElementById('toolsGrid');
@@ -642,12 +890,13 @@ function renderToolsGrid() {
 }
 
 /* ============================================================
-   14. INIT
+   13. INIT
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[app] AntiScam Tools starting...');
-  renderToolsGrid();
+  console.log('[app] Mode: Client-side (no backend)');
 
+  renderToolsGrid();
   const btnBack = document.getElementById('btnBack');
   if (btnBack) btnBack.addEventListener('click', showHome);
 
