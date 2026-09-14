@@ -1,12 +1,12 @@
 /* ============================================================
-   ANTISCAM TOOLS — All-in-One Script (No Backend)
-   Firebase + Tavily + 6 Tools + UI Router
-   Cara pakai: buka index.html dari web server (bukan file://)
+   ANTISCAM TOOLS — All-in-One Script (v2.0)
+   Firebase + Tavily + 6 Tools + Deteksi Merek Kartu + UI Router
+   Cara pakai: buka index.html dari web server (GitHub Pages / Netlify)
    Project: tracker-penipu
    ============================================================ */
 
 /* ============================================================
-   1. CONFIG
+   1. FIREBASE CONFIG
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyAMJU2BpafyMqH7_MQ7KdlS4PEyEoKbSNA",
@@ -69,7 +69,65 @@ function updateConnStatus(state, text) {
 }
 
 /* ============================================================
-   3. TOOL DEFINITIONS
+   3. PROVIDER + BRAND DATABASE
+   Prefix nomor HP Indonesia → Operator + Merek Kartu
+   ============================================================ */
+const PROVIDERS = {
+  // ============ TELKOMSEL ============
+  '811': { operator: 'Telkomsel', brand: 'by.U / KartuHalo', type: 'Prabayar MVNO / Postpaid' },
+  '812': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '813': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '821': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '822': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '823': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '851': { operator: 'Telkomsel', brand: 'by.U', type: 'Prabayar Digital' },
+  '852': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+  '853': { operator: 'Telkomsel', brand: 'Simpati / As / Halo', type: 'Prabayar / Postpaid' },
+
+  // ============ INDOSAT OOREDOO ============
+  '814': { operator: 'Indosat', brand: 'IM3 / Matrix', type: 'Prabayar / Postpaid' },
+  '815': { operator: 'Indosat', brand: 'IM3 / Matrix', type: 'Prabayar / Postpaid' },
+  '816': { operator: 'Indosat', brand: 'IM3 / Matrix', type: 'Prabayar / Postpaid' },
+  '855': { operator: 'Indosat', brand: 'IM3', type: 'Prabayar' },
+  '856': { operator: 'Indosat', brand: 'IM3', type: 'Prabayar' },
+  '857': { operator: 'Indosat', brand: 'IM3', type: 'Prabayar' },
+  '858': { operator: 'Indosat', brand: 'IM3', type: 'Prabayar' },
+
+  // ============ XL AXIATA ============
+  '817': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+  '818': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+  '819': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+  '859': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+  '877': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+  '878': { operator: 'XL Axiata', brand: 'XL', type: 'Prabayar' },
+
+  // ============ AXIS ============
+  '831': { operator: 'AXIS', brand: 'AXIS', type: 'Prabayar' },
+  '832': { operator: 'AXIS', brand: 'AXIS', type: 'Prabayar' },
+  '833': { operator: 'AXIS', brand: 'AXIS', type: 'Prabayar' },
+  '838': { operator: 'AXIS', brand: 'AXIS', type: 'Prabayar' },
+
+  // ============ TRI (3) ============
+  '895': { operator: 'Tri', brand: 'Tri (3)', type: 'Prabayar' },
+  '896': { operator: 'Tri', brand: 'Tri (3)', type: 'Prabayar' },
+  '897': { operator: 'Tri', brand: 'Tri (3)', type: 'Prabayar' },
+  '898': { operator: 'Tri', brand: 'Tri (3)', type: 'Prabayar' },
+  '899': { operator: 'Tri', brand: 'Tri (3)', type: 'Prabayar' },
+
+  // ============ SMARTFREN ============
+  '881': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '882': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '883': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '884': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '885': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '886': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '887': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '888': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' },
+  '889': { operator: 'Smartfren', brand: 'Smartfren', type: 'Prabayar' }
+};
+
+/* ============================================================
+   4. TOOL DEFINITIONS
    ============================================================ */
 const TOOLS = {
   rekening: {
@@ -86,7 +144,7 @@ const TOOLS = {
   phone: {
     id: 'phone',
     name: 'Cek Nomor HP',
-    desc: 'Cek reputasi nomor HP, provider, dan laporan penipuan terkait.',
+    desc: 'Cek operator, merek kartu, dan reputasi nomor HP.',
     icon: 'i-phone',
     tag: 'Contact',
     fields: [
@@ -144,7 +202,7 @@ const TOOLS = {
 };
 
 /* ============================================================
-   4. HELPERS
+   5. HELPERS
    ============================================================ */
 function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -165,7 +223,7 @@ function num(n) {
 }
 
 /* ============================================================
-   5. TAVILY SEARCH — helper
+   6. TAVILY SEARCH
    ============================================================ */
 async function tavilySearch(query, maxResults = 5) {
   try {
@@ -193,10 +251,10 @@ async function tavilySearch(query, maxResults = 5) {
 }
 
 /* ============================================================
-   6. TOOL LOGIC
+   7. TOOL LOGIC
    ============================================================ */
 
-/* ---------- 6.1 REKENING ---------- */
+/* ---------- 7.1 REKENING ---------- */
 async function scanRekening({ bank, nomor }) {
   if (!bank || !nomor) throw new Error('Bank dan nomor rekening wajib diisi.');
   if (!/^\d{8,20}$/.test(nomor)) throw new Error('Nomor rekening harus 8-20 digit.');
@@ -213,7 +271,6 @@ async function scanRekening({ bank, nomor }) {
     flags: []
   };
 
-  // Tavily search untuk laporan web
   const tavily = await tavilySearch(`"${nomor}" penipuan OR scam OR laporan ${bank}`, 5);
   const suspicious = tavily.filter(r =>
     /penipu|scam|lapor|tipu|curang|penipuan/i.test((r.title || '') + ' ' + (r.content || ''))
@@ -233,11 +290,10 @@ async function scanRekening({ bank, nomor }) {
     result.sources.push({ source: 'tavily-web', found: false, hits: 0 });
   }
 
-  // Catatan: CekRekening.id dan Kredibel tidak bisa diakses dari browser (CORS)
   result.sources.push({
     source: 'cekrekening.id',
     found: false,
-    note: 'Perlu backend untuk akses — buka manual di cekrekening.id'
+    note: 'Buka manual di cekrekening.id'
   });
 
   if (result.riskScore >= 45) result.riskLevel = 'high';
@@ -247,19 +303,7 @@ async function scanRekening({ bank, nomor }) {
   return result;
 }
 
-/* ---------- 6.2 PHONE ---------- */
-const PROVIDERS = {
-  '811': 'Telkomsel', '812': 'Telkomsel', '813': 'Telkomsel', '821': 'Telkomsel',
-  '822': 'Telkomsel', '823': 'Telkomsel', '851': 'Telkomsel', '852': 'Telkomsel', '853': 'Telkomsel',
-  '814': 'Indosat', '815': 'Indosat', '816': 'Indosat',
-  '855': 'Indosat', '856': 'Indosat', '857': 'Indosat', '858': 'Indosat',
-  '817': 'XL', '818': 'XL', '819': 'XL', '859': 'XL', '877': 'XL', '878': 'XL',
-  '831': 'Axis', '832': 'Axis', '833': 'Axis', '838': 'Axis',
-  '895': 'Tri', '896': 'Tri', '897': 'Tri', '898': 'Tri', '899': 'Tri',
-  '881': 'Smartfren', '882': 'Smartfren', '883': 'Smartfren', '884': 'Smartfren',
-  '885': 'Smartfren', '886': 'Smartfren', '887': 'Smartfren', '888': 'Smartfren', '889': 'Smartfren'
-};
-
+/* ---------- 7.2 PHONE ---------- */
 async function scanPhone({ nomor }) {
   if (!nomor) throw new Error('Nomor HP wajib diisi.');
 
@@ -269,7 +313,9 @@ async function scanPhone({ nomor }) {
     type: 'phone',
     target: cleaned,
     nomor: cleaned,
-    provider: null,
+    operator: null,
+    brand: null,
+    cardType: null,
     reported: false,
     riskScore: 0,
     riskLevel: 'safe',
@@ -277,9 +323,21 @@ async function scanPhone({ nomor }) {
     flags: []
   };
 
+  // ============ DETEKSI OPERATOR & BRAND ============
   const prefix = cleaned.replace(/^0/, '').slice(0, 3);
-  result.provider = PROVIDERS[prefix] || 'Unknown';
+  const info = PROVIDERS[prefix];
 
+  if (info) {
+    result.operator = info.operator;
+    result.brand = info.brand;
+    result.cardType = info.type;
+  } else {
+    result.operator = 'Unknown';
+    result.brand = 'Unknown';
+    result.cardType = 'Unknown';
+  }
+
+  // ============ TAVILY SEARCH ============
   const tavily = await tavilySearch(`"${cleaned}" penipuan OR scam OR laporan OR was-was`, 5);
   const suspicious = tavily.filter(r =>
     /penipu|scam|lapor|tipu|curang|penipuan|was-was|modus|hati-hati/i.test((r.title || '') + ' ' + (r.content || ''))
@@ -302,7 +360,7 @@ async function scanPhone({ nomor }) {
   result.sources.push({
     source: 'kredibel.com',
     found: false,
-    note: 'Buka manual di kredibel.com untuk cek lebih lanjut'
+    note: 'Buka manual di kredibel.com'
   });
 
   if (result.riskScore >= 50) result.riskLevel = 'high';
@@ -312,7 +370,7 @@ async function scanPhone({ nomor }) {
   return result;
 }
 
-/* ---------- 6.3 SITUS ---------- */
+/* ---------- 7.3 SITUS ---------- */
 async function scanSitus({ url }) {
   if (!url) throw new Error('URL wajib diisi.');
 
@@ -330,10 +388,10 @@ async function scanSitus({ url }) {
     riskScore: 0,
     riskLevel: 'safe',
     flags: [],
-    keywords: {}
+    keywords: {},
+    sources: []
   };
 
-  // Deteksi keyword di URL
   const urlKeywords = ['judi', 'slot', 'togel', 'casino', 'poker', 'bet', 'maxwin', 'jackpot', 'rtp'];
   const urlLower = target.toLowerCase();
   const foundUrl = urlKeywords.filter(k => urlLower.includes(k));
@@ -343,7 +401,6 @@ async function scanSitus({ url }) {
     result.flags.push(`URL mengandung kata kunci: ${foundUrl.join(', ')}`);
   }
 
-  // Tavily search
   const tavily = await tavilySearch(`"${domain}" penipuan OR scam OR judi OR phishing OR laporan`, 5);
   const suspicious = tavily.filter(r =>
     /penipu|scam|judi|phishing|lapor|tipu|illegal/i.test((r.title || '') + ' ' + (r.content || ''))
@@ -353,13 +410,9 @@ async function scanSitus({ url }) {
     result.riskScore += Math.min(suspicious.length * 10, 40);
     result.flags.push(`Ditemukan ${suspicious.length} laporan terkait domain`);
     result.keywords.reports = suspicious.slice(0, 3).map(r => ({ title: r.title, url: r.url }));
-    result.sources = [{
-      source: 'tavily-web',
-      found: true,
-      hits: suspicious.length
-    }];
+    result.sources.push({ source: 'tavily-web', found: true, hits: suspicious.length });
   } else {
-    result.sources = [{ source: 'tavily-web', found: false, hits: 0 }];
+    result.sources.push({ source: 'tavily-web', found: false, hits: 0 });
   }
 
   if (result.riskScore >= 50) result.riskLevel = 'high';
@@ -369,7 +422,7 @@ async function scanSitus({ url }) {
   return result;
 }
 
-/* ---------- 6.4 EMAIL ---------- */
+/* ---------- 7.4 EMAIL ---------- */
 const DISPOSABLE_DOMAINS = [
   'tempmail.com', 'guerrillamail.com', '10minutemail.com', 'mailinator.com',
   'throwawaymail.com', 'yopmail.com', 'sharklasers.com', 'maildrop.cc',
@@ -403,11 +456,10 @@ async function scanEmail({ email }) {
     result.flags.push('Email dari layanan disposable/temporary');
   }
 
-  // HIBP via public proxy (haveibeenpwned butuh key, skip)
   result.sources.push({
     source: 'haveibeenpwned.com',
     found: false,
-    note: 'Buka manual di haveibeenpwned.com untuk cek kebocoran'
+    note: 'Buka manual di haveibeenpwned.com'
   });
 
   if (result.riskScore >= 40) result.riskLevel = 'high';
@@ -417,7 +469,7 @@ async function scanEmail({ email }) {
   return result;
 }
 
-/* ---------- 6.5 LINK ---------- */
+/* ---------- 7.5 LINK ---------- */
 async function scanLink({ url }) {
   if (!url) throw new Error('URL wajib diisi.');
 
@@ -438,7 +490,6 @@ async function scanLink({ url }) {
 
   try { result.domain = new URL(target).hostname; } catch {}
 
-  // Deteksi keyword mencurigakan di URL
   const suspiciousWords = ['judi', 'slot', 'togel', 'casino', 'poker', 'bet', 'maxwin',
                             'login', 'verify', 'bonus', 'hadiah', 'claim', 'wallet',
                             'investment', 'profit', 'crypto'];
@@ -457,7 +508,6 @@ async function scanLink({ url }) {
     result.riskScore += 10;
   }
 
-  // Tavily search
   const tavily = await tavilySearch(`${target} penipuan OR scam OR judi OR phishing`, 3);
   const suspicious2 = tavily.filter(r =>
     /penipu|scam|judi|phishing|lapor|tipu|illegal/i.test((r.title || '') + ' ' + (r.content || ''))
@@ -474,7 +524,7 @@ async function scanLink({ url }) {
   return result;
 }
 
-/* ---------- 6.6 LAPORAN ---------- */
+/* ---------- 7.6 LAPORAN ---------- */
 async function generateLaporan(formData) {
   if (!formData.suspectName && !formData.suspectAccount && !formData.suspectPhone) {
     throw new Error('Minimal salah satu data terlapor harus diisi.');
@@ -488,7 +538,6 @@ async function generateLaporan(formData) {
     createdAt: Date.now()
   };
 
-  // Auto-generate PDF
   try {
     generateLaporanPDF(result);
   } catch (e) {
@@ -499,7 +548,7 @@ async function generateLaporan(formData) {
 }
 
 /* ============================================================
-   7. PDF GENERATION
+   8. PDF GENERATION
    ============================================================ */
 function generateLaporanPDF(data) {
   if (!window.jspdf) {
@@ -585,7 +634,7 @@ function generateLaporanPDF(data) {
 }
 
 /* ============================================================
-   8. FIREBASE — Save & Load
+   9. FIREBASE — Save & Load
    ============================================================ */
 async function saveScan(scanData) {
   if (!fbReady || !db) return;
@@ -650,7 +699,7 @@ function renderRecent(items) {
 }
 
 /* ============================================================
-   9. UI ROUTER
+   10. UI ROUTER
    ============================================================ */
 function showHome() {
   document.getElementById('view-home').classList.add('active');
@@ -707,7 +756,7 @@ function showTool(toolId) {
 }
 
 /* ============================================================
-   10. RUN SCAN
+   11. RUN SCAN
    ============================================================ */
 async function runScan(toolId) {
   const tool = TOOLS[toolId];
@@ -720,7 +769,6 @@ async function runScan(toolId) {
     if (input) formData[f.name] = input.value.trim();
   }
 
-  // Validate
   const requiredMap = {
     rekening: ['bank', 'nomor'],
     phone: ['nomor'],
@@ -786,7 +834,7 @@ async function runScan(toolId) {
 }
 
 /* ============================================================
-   11. RENDER RESULT
+   12. RENDER RESULT
    ============================================================ */
 function renderResult(result) {
   const el = document.getElementById('toolResult');
@@ -801,18 +849,49 @@ function renderResult(result) {
     unknown: 'Unknown'
   }[result.riskLevel] || 'Unknown';
 
-  const SKIP_KEYS = ['type', 'target', 'riskScore', 'riskLevel', 'flags', 'sources',
-                     'data', 'createdAt', 'cached', 'suspectName', 'reporterName',
-                     'suspectPhone', 'suspectAccount', 'suspectBank', 'reporterContact',
-                     'lossAmount', 'modus', 'chronology', 'keywords'];
+  // Field yang tidak ditampilkan di grid
+  const SKIP_KEYS = [
+    'type', 'target', 'riskScore', 'riskLevel', 'flags', 'sources',
+    'data', 'createdAt', 'cached', 'keywords',
+    'suspectName', 'reporterName', 'suspectPhone', 'suspectAccount',
+    'suspectBank', 'reporterContact', 'lossAmount', 'modus', 'chronology'
+  ];
+
+  // Mapping label custom
+  const LABEL_MAP = {
+    operator: 'Operator',
+    brand: 'Merek Kartu',
+    cardType: 'Tipe Kartu',
+    nomor: 'Nomor',
+    email: 'Email',
+    domain: 'Domain',
+    bank: 'Bank',
+    disposable: 'Disposable',
+    breachCount: 'Jumlah Kebocoran',
+    reported: 'Dilaporkan',
+    reachable: 'Bisa Diakses',
+    suspicious: 'Mencurigakan',
+    input: 'URL Input',
+    final: 'URL Final'
+  };
 
   const entries = [];
   for (const [k, v] of Object.entries(result)) {
     if (SKIP_KEYS.includes(k)) continue;
     if (v === null || v === undefined || v === '') continue;
     if (typeof v === 'object') continue;
-    const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-    entries.push([label, String(v)]);
+
+    const label = LABEL_MAP[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+    let value = String(v);
+
+    // Format khusus
+    if (k === 'lossAmount' && !isNaN(v)) {
+      value = 'Rp ' + num(Number(v));
+    } else if (k === 'reported' || k === 'disposable' || k === 'suspicious' || k === 'reachable') {
+      value = v === true ? 'Ya' : 'Tidak';
+    }
+
+    entries.push([label, value]);
   }
 
   // Sources
@@ -825,7 +904,7 @@ function renderResult(result) {
           let text = s.source || 'source';
           if (s.note) text += `: ${s.note}`;
           else if (s.error) text += `: error`;
-          else if (ok) text += `: ✓ Ditemukan (${s.hits || s.count || 1})`;
+          else if (ok) text += `: ✓ Ditemukan (${s.hits || s.count || s.reportCount || 1})`;
           else text += ': ✓ Bersih';
           return `<div class="flag-item" style="color:${color}">
             <svg width="14" height="14" aria-hidden="true"><use href="#${icon}"/></svg>
@@ -867,7 +946,7 @@ function renderResult(result) {
 }
 
 /* ============================================================
-   12. RENDER TOOLS GRID
+   13. RENDER TOOLS GRID
    ============================================================ */
 function renderToolsGrid() {
   const el = document.getElementById('toolsGrid');
@@ -890,13 +969,14 @@ function renderToolsGrid() {
 }
 
 /* ============================================================
-   13. INIT
+   14. INIT
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[app] AntiScam Tools starting...');
-  console.log('[app] Mode: Client-side (no backend)');
+  console.log('[app] Version: 2.0 (with brand detection)');
 
   renderToolsGrid();
+
   const btnBack = document.getElementById('btnBack');
   if (btnBack) btnBack.addEventListener('click', showHome);
 
