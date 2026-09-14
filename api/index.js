@@ -1,5 +1,5 @@
 /* ============================================================
-   ANTISCAM TOOLS — Backend API (ALL-IN-ONE)
+   ANTISCAM TOOLS — Backend API (All-in-One)
    Project: tracker-penipu
    Endpoint: POST /api { tool, data }
    ============================================================ */
@@ -14,14 +14,14 @@ import whois from 'whois-json';
 const CONFIG = {
   TAVILY_API_KEY: process.env.TAVILY_API_KEY || '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',
   HIBP_API_KEY: process.env.HIBP_API_KEY || '',
-  CACHE_TTL: 5 * 60 * 1000,      // 5 menit
+  CACHE_TTL: 5 * 60 * 1000,
   RATE_LIMIT_PER_MIN: 10
 };
 
 const TAVILY_ENDPOINT = 'https://api.tavily.com/search';
 
 /* ============================================================
-   UTILITIES — Rate Limit + Cache
+   RATE LIMIT + CACHE
    ============================================================ */
 const rateLimitMap = new Map();
 const cacheMap = new Map();
@@ -44,7 +44,6 @@ function cacheGet(key) {
 
 function cacheSet(key, val) {
   cacheMap.set(key, { v: val, t: Date.now() });
-  // Auto-cleanup
   if (cacheMap.size > 500) {
     const now = Date.now();
     for (const [k, v] of cacheMap) {
@@ -54,7 +53,7 @@ function cacheSet(key, val) {
 }
 
 /* ============================================================
-   TAVILY SEARCH — helper untuk semua tool
+   TAVILY SEARCH
    ============================================================ */
 async function tavilySearch(query, maxResults = 5) {
   try {
@@ -261,7 +260,6 @@ async function toolPhone(data) {
     flags: []
   };
 
-  // Deteksi provider
   const prefix = cleaned.replace(/^0/, '').slice(0, 3);
   result.provider = PROVIDERS[prefix] || 'Unknown';
 
@@ -372,7 +370,6 @@ async function toolSitus(data) {
   result.whois = whoisData;
   result.reachable = !fetchRes.error;
 
-  // Analisis HTML
   if (fetchRes.html) {
     const $ = cheerio.load(fetchRes.html);
     const text = $('body').text().toLowerCase();
@@ -532,7 +529,6 @@ async function toolLink(data) {
     flags: []
   };
 
-  // Follow redirect chain
   let current = url;
   const chain = [current];
   let maxHops = 15;
@@ -594,7 +590,7 @@ async function toolLink(data) {
 }
 
 /* ============================================================
-   TOOL 6 — LAPORAN (data gathering only)
+   TOOL 6 — LAPORAN
    ============================================================ */
 async function toolLaporan(data) {
   if (!data.suspectName && !data.suspectAccount && !data.suspectPhone) {
@@ -611,7 +607,7 @@ async function toolLaporan(data) {
 }
 
 /* ============================================================
-   ROUTER — Map tool → handler
+   ROUTER
    ============================================================ */
 const TOOLS = {
   rekening: toolRekening,
@@ -623,27 +619,36 @@ const TOOLS = {
 };
 
 /* ============================================================
-   MAIN HANDLER (Vercel Serverless Function)
+   MAIN HANDLER
    ============================================================ */
 export default async function handler(req, res) {
-  // CORS
+  // CORS headers — WAJIB untuk POST dari browser
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  // Handle OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
-  // Health check
+  // Handle GET — health check
   if (req.method === 'GET') {
-    return res.json({
+    return res.status(200).json({
       status: 'online',
+      service: 'AntiScam Tools API',
       tools: Object.keys(TOOLS),
       timestamp: Date.now()
     });
   }
 
+  // Hanya POST yang diizinkan untuk operasi
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+    return res.status(405).json({
+      error: 'Method not allowed. Use POST.',
+      method: req.method
+    });
   }
 
   // Rate limit
@@ -656,7 +661,20 @@ export default async function handler(req, res) {
   }
 
   // Parse body
-  const { tool, data } = req.body || {};
+  let body = req.body;
+
+  // Kalau body masih string (edge case), parse manual
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); }
+    catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
+  }
+
+  if (!body) {
+    return res.status(400).json({ error: 'Body kosong. Format: { tool, data }' });
+  }
+
+  const { tool, data } = body;
+
   if (!tool || !data) {
     return res.status(400).json({ error: 'Format: { tool, data }' });
   }
@@ -670,9 +688,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log(`[api] ${tool} | ${ip} |`, JSON.stringify(data).slice(0, 200));
+    console.log(`[api] ${tool} | ${ip}`);
     const result = await fn(data);
-    res.json(result);
+    res.status(200).json(result);
   } catch (e) {
     console.error(`[api] ${tool} error:`, e.message);
     res.status(500).json({ error: e.message });
