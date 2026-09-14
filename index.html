@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AntiScam Tools — Platform Anti-Penipuan</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+<!-- jsPDF untuk generate laporan PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     SVG SPRITE — semua icon (no emoji)
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 2L4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
+      <polyline points="9 12 11 14 15 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-card" viewBox="0 0 24 24">
+      <rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/>
+      <circle cx="6" cy="14" r="1.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24">
+      <rect x="6" y="2" width="12" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="10" y1="18.5" x2="14" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24">
+      <rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <polyline points="3 6 12 13 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/>
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/>
+    </symbol>
+    <symbol id="i-file" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <line x1="9" y1="13" x2="15" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="9" y1="17" x2="13" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24">
+      <polyline points="15 18 9 12 15 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l2-6 4 12 2-6h6"/>
+    </symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+      <polyline points="12 7 12 12 15 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-database" viewBox="0 0 24 24">
+      <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="brand">
+      <svg width="28" height="28" aria-hidden="true"><use href="#i-shield"/></svg>
+      <span class="brand-text">AntiScam<em>.tools</em></span>
+    </div>
+    <div class="header-status">
+      <span class="status-dot" id="connStatus"></span>
+      <span class="status-text" id="connText">Initializing</span>
+    </div>
+  </header>
+
+  <!-- HOME VIEW -->
+  <main id="view-home" class="view active">
+    <section class="hero">
+      <div class="hero-prompt">
+        <span class="prompt-user">root@antiscam</span><span class="prompt-sep">:</span><span class="prompt-path">~</span><span class="prompt-dollar">$</span>
+        <span class="prompt-cmd">help --tools</span>
+        <span class="cursor"></span>
+      </div>
+      <h1 class="hero-title">Platform Anti-Penipuan</h1>
+      <p class="hero-desc">
+        Kumpulan alat OSINT untuk memverifikasi rekening, nomor HP, situs, email, dan link mencurigakan.
+        Semua gratis, tanpa login, dan didukung data publik.
+      </p>
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-label">Total Scan</span>
+          <span class="stat-value" id="statTotal">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Terdeteksi</span>
+          <span class="stat-value danger" id="statDanger">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Aman</span>
+          <span class="stat-value success" id="statSafe">0</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="tools-grid" id="toolsGrid"></section>
+
+    <section class="recent">
+      <h2 class="section-title">
+        <svg width="16" height="16" aria-hidden="true"><use href="#i-pulse"/></svg>
+        Aktivitas Terbaru
+      </h2>
+      <div class="recent-list" id="recentList">
+        <div class="empty">Belum ada aktivitas.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- TOOL VIEW -->
+  <main id="view-tool" class="view">
+    <div class="tool-header">
+      <button class="btn-back" id="btnBack">
+        <svg width="16" height="16" aria-hidden="true"><use href="#i-back"/></svg>
+        Kembali
+      </button>
+      <div class="tool-title-wrap">
+        <div class="tool-icon-wrap" id="toolIcon"></div>
+        <div>
+          <h1 class="tool-title" id="toolTitle">—</h1>
+          <p class="tool-desc" id="toolDesc">—</p>
+        </div>
+      </div>
+    </div>
+    <div class="tool-body">
+      <div class="tool-form" id="toolForm"></div>
+      <div class="tool-result" id="toolResult"></div>
+      <div class="tool-history" id="toolHistory"></div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>AntiScam Tools</span>
+    <span>•</span>
+    <span>Open Source • Public Data • Community Driven</span>
+  </footer>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
