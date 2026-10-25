@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Admin</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="box" style="max-width: 350px;">
+        <h2>Login Admin</h2>
+        <form onsubmit="event.preventDefault(); doLogin();">
+            <input type="text" id="user" placeholder="Username">
+            <input type="password" id="pass" placeholder="Password">
+            <button type="submit">Login</button>
+        </form>
+        <div id="msg" style="margin-top:15px; color: #f85149; text-align: center;"></div>
+        <br>
+        <a href="index.html" style="text-align:center; display:block;">&larr; Kembali</a>
+    </div>
+
+    <script>
+        function doLogin() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            const msg = document.getElementById('msg');
+
+            // SIMULASI LOGIN BYPASS
+            if (user.includes("' OR '1'='1") || user.includes("' OR 1=1") || pass.includes("' OR '1'='1") || user.includes("admin'--")) {
+                msg.style.color = "#238636";
+                msg.innerHTML = "<b>LOGIN BERHASIL!</b><br>Mengalihkan ke halaman Admin...";
+                
+                setTimeout(() => {
+                    window.location.href = "admin.html";
+                }, 1000);
+            } else {
+                msg.innerText = "Login Gagal! Username atau password salah.";
+            }
+        }
+    </script>
+</body>
+</html>

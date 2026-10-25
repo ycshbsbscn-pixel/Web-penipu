@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Pencarian Produk</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="box">
+        <h2>Pencarian Produk</h2>
+        <form onsubmit="event.preventDefault(); doSearch();">
+            <input type="text" id="q" placeholder="Ketik nama produk...">
+            <button type="submit">Cari</button>
+        </form>
+        <div id="result" class="result-box">Hasil pencarian akan muncul di sini.</div>
+        <br>
+        <a href="index.html" style="text-align:center; display:block;">&larr; Kembali</a>
+    </div>
+
+    <script>
+        function doSearch() {
+            const q = document.getElementById('q').value;
+            const resultDiv = document.getElementById('result');
+
+            // SIMULASI SQL ERROR (Untuk menipu scanner)
+            if (q.includes("'") || q.toLowerCase().includes("or 1=1")) {
+                resultDiv.innerHTML = `<span style="color:#f85149">SQL Syntax Error: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '${q}' at line 1</span>`;
+                return;
+            }
+
+            // SIMULASI XSS (Refleksi input tanpa sanitasi)
+            resultDiv.innerHTML = `
+                <p>Hasil pencarian untuk: <b>${q}</b></p>
+                <p>Produk ditemukan: Laptop, Mouse, Keyboard.</p>
+            `;
+        }
+    </script>
+</body>
+</html>

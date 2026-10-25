@@ -1,5 +1,96 @@
-body { font-family: sans-serif; background: #f4f4f4; padding: 40px; }
-.container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-.result { margin-top: 20px; padding: 15px; background: #fafafa; border: 1px solid #ddd; }
-code { background: #eee; padding: 2px 4px; }
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #0a0a0f; 
+    color: #e6edf3; 
+    padding: 40px; 
+    text-align: center; 
+    margin: 0;
+}
+
+a { 
+    color: #58a6ff; 
+    text-decoration: none; 
+    transition: 0.2s;
+}
+
+a:hover {
+    color: #79c0ff;
+    text-decoration: underline;
+}
+
+.box { 
+    background: #161b22; 
+    padding: 30px; 
+    border-radius: 10px; 
+    display: inline-block; 
+    border: 1px solid #30363d;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    text-align: left;
+    max-width: 500px;
+    width: 100%;
+}
+
+h1, h2 { 
+    text-align: center; 
+    color: #58a6ff;
+}
+
+input, button { 
+    padding: 12px; 
+    margin: 10px 0; 
+    width: 100%; 
+    box-sizing: border-box; 
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background: #0d1117;
+    color: #fff;
+}
+
+button {
+    background: #238636;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+}
+
+button:hover {
+    background: #2ea043;
+}
+
+.result-box { 
+    margin-top: 20px; 
+    padding: 15px; 
+    background: #0d1117; 
+    border: 1px solid #30363d; 
+    border-radius: 6px;
+    font-family: monospace;
+    word-wrap: break-word;
+}
+
+.flag { 
+    color: #238636; 
+    font-weight: bold; 
+    font-family: monospace; 
+    font-size: 20px; 
+    margin-top: 20px; 
+    text-align: center;
+    padding: 10px;
+    border: 2px dashed #238636;
+    border-radius: 6px;
+}
+
+.menu-list a { 
+    display: block; 
+    margin: 10px 0; 
+    font-size: 18px; 
+    padding: 10px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.menu-list a:hover {
+    background: #30363d;
+    text-decoration: none;
+}
